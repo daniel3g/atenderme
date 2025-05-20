@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 
 const EVOLUTION_API = 'https://wsapi.guarumidia.com';
 const TOKEN = process.env.EVOLUTION_API_TOKEN || '';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('instancias')
-    .select('session_id')
+    .select('session_id, status')
     .eq('agente_id', agenteId)
     .single();
 
@@ -22,22 +23,35 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Instância não encontrada.' }, { status: 404 });
   }
 
-  const { session_id } = data;
+  const { session_id, status: statusAtual } = data;
 
   try {
     const response = await fetch(`${EVOLUTION_API}/instance/connectionState/${session_id}`, {
-  headers: {
-    'AuthenticationApiKey': TOKEN,
-  },
-});
+      headers: { apikey: TOKEN },
+    });
 
     const result = await response.json();
+    const state = result.instance?.state;
+    const numero = result.instance?.number || null;
 
-    if (result.state === 'CONNECTED') {
-      await supabase
-        .from('instancias')
-        .update({ status: 'ativo' })
-        .eq('session_id', session_id);
+    console.debug('[DEBUG] Status atual da instância:', result);
+
+    if (state === 'open') {
+      if (statusAtual !== 'ativo') {
+        console.info('[INFO] Instância conectada. Atualizando Supabase e ativando fluxo...');
+
+        await supabase
+          .from('instancias')
+          .update({ status: 'ativo', numero_whatsapp: numero })
+          .eq('session_id', session_id);
+
+        // Ativa o fluxo no N8N
+        await fetch(`${SITE_URL}/api/instancias/ativar-fluxo`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agenteId }),
+        });
+      }
 
       return NextResponse.json({ status: 'ativo' });
     }

@@ -1,0 +1,85 @@
+{
+  "name": "Workflow WhatsApp Automatico",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook/sessao-{{sessionId}}"
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook"
+    },
+    {
+      "parameters": {
+        "resource": "assistant",
+        "assistantId": {
+          "value": "{{assistantId}}",
+          "mode": "list"
+        },
+        "text": "={{ $json.nome }} diz {{ $json.mensagem }}"
+      },
+      "name": "OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.openAi"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wsapi.guarumidia.com/message/sendText/sessao-{{sessionId}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Webhook').item.json.body.data[0].remoteJid }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.mensagem }}"
+            }
+          ]
+        }
+      },
+      "name": "Envia WhatsApp",
+      "type": "n8n-nodes-base.httpRequest"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "{{sessionId}}"
+      },
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Window Buffer Memory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Envia WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

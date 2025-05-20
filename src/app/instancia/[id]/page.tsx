@@ -5,71 +5,71 @@ import { useParams } from 'next/navigation';
 
 export default function InstanciaPage() {
   const { id } = useParams();
-  const [qrCode, setQrCode] = useState('');
-  const [status, setStatus] = useState('aguardando');
-  const [erro, setErro] = useState('');
+  const [agenteId, setAgenteId] = useState<string | null>(null);
+  const [status, setStatus] = useState<'pendente' | 'ativo' | 'erro'>('pendente');
+  const [qrcode, setQrcode] = useState<string | null>(null);
 
-  // Cria a sessão na Evolution e obtém o QR
+  // Define o ID do agente
   useEffect(() => {
-    const iniciarInstancia = async () => {
-      try {
-        const res = await fetch('/api/instancias/criar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agenteId: id }),
-        });
-
-        const data = await res.json();
-
-        if (data.qrcode_base64) {
-          setQrCode(data.qrcode_base64);
-        } else {
-          setErro('Erro ao iniciar a sessão.');
-        }
-      } catch (err) {
-        setErro('Erro ao conectar com a Evolution API.');
-      }
-    };
-
-    iniciarInstancia();
+    if (typeof id === 'string') {
+      setAgenteId(id);
+    }
   }, [id]);
 
-  // Polling para verificar se a sessão foi conectada
+  // Criação da instância
   useEffect(() => {
-    if (!qrCode) return;
+    if (!agenteId) return;
 
-    const interval = setInterval(async () => {
-      const res = await fetch(`/api/instancias/status?id=${id}`);
-      const data = await res.json();
+    fetch('/api/instancias/criar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agenteId }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.qrcode_base64) {
+          setQrcode(data.qrcode_base64);
+        }
+      })
+      .catch(() => setStatus('erro'));
+  }, [agenteId]);
 
-      if (data.status === 'ativo') {
-        setStatus('conectado');
-        clearInterval(interval);
-      }
+  // Verificação do status
+  useEffect(() => {
+    if (!agenteId) return;
+
+    const interval = setInterval(() => {
+      fetch(`/api/instancias/status?id=${agenteId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === 'ativo') {
+            setStatus('ativo');
+            setQrcode(null);
+            clearInterval(interval);
+          }
+        })
+        .catch(() => setStatus('erro'));
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [qrCode, id]);
+  }, [agenteId]);
 
   return (
-    <main className="max-w-xl mx-auto p-6 text-center">
-      <h1 className="text-2xl font-bold mb-4">Conectar no WhatsApp</h1>
+    <div style={{ textAlign: 'center', paddingTop: 40 }}>
+      <h1>Conectar no WhatsApp</h1>
 
-      {erro && <p className="text-red-600 mb-4">{erro}</p>}
-
-      {status === 'conectado' ? (
-        <p className="text-green-600 text-lg font-semibold">
-          ✅ Conectado com sucesso!
-        </p>
-      ) : qrCode ? (
-        <>
-          <p className="mb-2 text-gray-700">Escaneie o QR Code abaixo:</p>
-          <img src={`data:image/png;base64,${qrCode}`} alt="QR Code" className="mx-auto mb-4" />
-          <p className="text-sm text-gray-500">Aguardando conexão...</p>
-        </>
-      ) : (
-        <p className="text-gray-600">Preparando a sessão...</p>
+      {status === 'ativo' && <p>✅ Conectado com sucesso!</p>}
+      {status === 'erro' && <p>Erro ao iniciar a sessão.<br />Preparando a sessão...</p>}
+      {status === 'pendente' && !qrcode && <p>Preparando a sessão...</p>}
+      {status === 'pendente' && qrcode && (
+        <img
+          src={`data:image/png;base64,${qrcode}`}
+          alt="QR Code"
+          width={350}
+          height={350}
+          style={{ marginTop: 20 }}
+        />
       )}
-    </main>
+    </div>
   );
 }
