@@ -1,30 +1,92 @@
 {
-  "name": "Workflow WhatsApp Automatico",
+  "name": "Modelo WhatsApp",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "webhook/sessao-{{sessionId}}"
+        "path": "sessao-{{session_id}}",
+        "options": {}
       },
+      "id": "webhook-node",
       "name": "Webhook",
-      "type": "n8n-nodes-base.webhook"
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        580
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "nome",
+              "value": "={{ $json.body.data.pushName }}"
+            },
+            {
+              "name": "celular",
+              "value": "={{ $json.body.data.key.remoteJid }}"
+            },
+            {
+              "name": "mensagem",
+              "value": "={{ $json.body.data.message.conversation }}"
+            },
+            {
+              "name": "idcliente",
+              "value": "={{ $json.body.data.key.id }}"
+            }
+          ]
+        }
+      },
+      "id": "set-node-entrada",
+      "name": "Dados vindos Whatsapp",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1620,
+        580
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "mensagem",
+              "value": "={{ $json.output }}"
+            }
+          ]
+        }
+      },
+      "id": "set-node-saida",
+      "name": "Dados vindos OpenAI",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        2260,
+        580
+      ]
     },
     {
       "parameters": {
         "resource": "assistant",
-        "assistantId": {
-          "value": "{{assistantId}}",
-          "mode": "list"
-        },
+        "assistantId": "{{assistant_id}}",
         "text": "={{ $json.nome }} diz {{ $json.mensagem }}"
       },
+      "id": "openai-node",
       "name": "OpenAI",
-      "type": "@n8n/n8n-nodes-langchain.openAi"
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [
+        1860,
+        580
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://wsapi.guarumidia.com/message/sendText/sessao-{{sessionId}}",
+        "url": "https://wsapi.guarumidia.com/message/sendText/sessao-{{session_id}}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
@@ -41,16 +103,20 @@
           ]
         }
       },
-      "name": "Envia WhatsApp",
-      "type": "n8n-nodes-base.httpRequest"
-    },
-    {
-      "parameters": {
-        "sessionIdType": "customKey",
-        "sessionKey": "{{sessionId}}"
-      },
-      "name": "Window Buffer Memory",
-      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow"
+      "id": "http-node",
+      "name": "Envia para WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        2480,
+        580
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": ""
+        }
+      }
     }
   ],
   "connections": {
@@ -58,12 +124,18 @@
       "main": [
         [
           {
-            "node": "OpenAI",
+            "node": "Dados vindos Whatsapp",
             "type": "main",
             "index": 0
-          },
+          }
+        ]
+      ]
+    },
+    "Dados vindos Whatsapp": {
+      "main": [
+        [
           {
-            "node": "Window Buffer Memory",
+            "node": "OpenAI",
             "type": "main",
             "index": 0
           }
@@ -74,12 +146,27 @@
       "main": [
         [
           {
-            "node": "Envia WhatsApp",
+            "node": "Dados vindos OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados vindos OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Envia para WhatsApp",
             "type": "main",
             "index": 0
           }
         ]
       ]
     }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
   }
 }

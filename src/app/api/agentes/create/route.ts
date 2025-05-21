@@ -24,17 +24,19 @@ export async function POST(req: NextRequest) {
 
   // 1. Cria o assistant na OpenAI
   const openaiRes = await fetch('https://api.openai.com/v1/assistants', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      name: body.nome,
-      instructions: prompt,
-      model: 'gpt-4', // ou 'gpt-3.5-turbo' se preferir
-    }),
-  });
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${OPENAI_API_KEY}`,
+    'OpenAI-Beta': 'assistants=v2',
+  },
+  body: JSON.stringify({
+    name: body.nome,
+    instructions: prompt,
+    model: 'gpt-4', // ou 'gpt-3.5-turbo'
+  }),
+});
+
 
   const openaiData = await openaiRes.json();
 

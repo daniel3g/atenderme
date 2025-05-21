@@ -26,9 +26,17 @@ export default function CriarAgentePage() {
 
     const data = await res.json();
 
-    if (data.id) {
+    if (data.id && data.assistant_id) {
       setAgenteId(data.id);
-    }
+
+    // Cria a instância já vinculando o assistant_id
+    await fetch('/api/instancias/criar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agenteId: data.id, assistant_id: data.assistant_id }),
+    });
+}
+
 
     setLoading(false);
   };

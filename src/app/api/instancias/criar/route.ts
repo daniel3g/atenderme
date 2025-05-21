@@ -5,7 +5,7 @@ const EVOLUTION_API = 'https://wsapi.guarumidia.com';
 const TOKEN = process.env.EVOLUTION_API_TOKEN || '';
 
 export async function POST(req: NextRequest) {
-  const { agenteId } = await req.json();
+  const { agenteId, assistant_id } = await req.json();
   const session_id = `sessao-${agenteId}`;
 
   try {
@@ -84,6 +84,7 @@ export async function POST(req: NextRequest) {
         agente_id: agenteId,
         session_id,
         status: 'pendente',
+        assistant_id,
       },
     ]);
 

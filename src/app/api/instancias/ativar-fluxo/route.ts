@@ -1,73 +1,51 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
-import workflowModelo from '@/assets/WhatsApp_modelo.json';
+import { NextRequest, NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabaseClient'
+import workflowModelo from '@/assets/WhatsApp_modelo.json'
 
-const N8N_URL = 'https://workflows.guarumidia.com';
-const N8N_API_KEY = process.env.N8N_API_KEY || 'SUA_CHAVE_GERADA_DO_N8N';
-const EVOLUTION_API = 'https://wsapi.guarumidia.com';
-const TOKEN = process.env.EVOLUTION_API_TOKEN || '';
+const N8N_URL = 'https://workflows.guarumidia.com'
+const N8N_API_KEY = process.env.N8N_API_KEY || 'SUA_CHAVE_GERADA_DO_N8N'
+const EVOLUTION_API = 'https://wsapi.guarumidia.com'
+const TOKEN = process.env.EVOLUTION_API_TOKEN || ''
 
 export async function POST(req: NextRequest) {
-  const { agenteId } = await req.json();
+  const { agenteId } = await req.json()
 
   // 1. Busca a instância vinculada no Supabase
   const { data, error } = await supabase
     .from('instancias')
     .select('*')
     .eq('agente_id', agenteId)
-    .single();
+    .single()
 
   if (error || !data) {
-    return NextResponse.json({ error: 'Instância não encontrada' }, { status: 404 });
+    return NextResponse.json({ error: 'Instância não encontrada' }, { status: 404 })
   }
 
-  const { session_id, status, assistant_id } = data;
+  const { session_id, status, assistant_id } = data
 
   if (status !== 'ativo') {
-    return NextResponse.json({ error: 'Instância ainda não está conectada.' }, { status: 400 });
+    return NextResponse.json({ error: 'Instância ainda não está conectada.' }, { status: 400 })
   }
 
   if (!assistant_id) {
-    return NextResponse.json({ error: 'assistant_id não encontrado para esta instância.' }, { status: 400 });
+    return NextResponse.json({ error: 'assistant_id não definido para essa instância.' }, { status: 400 })
   }
 
-  const novoWebhook = `https://webhooks.guarumidia.com/webhook/${session_id.startsWith('sessao-') ? session_id : `sessao-${session_id}`}`;
-  const novoNome = `WhatsApp - Agente ${agenteId.slice(0, 5)} (${session_id.slice(0, 5)})`;
+  const novoWebhook = `https://webhooks.guarumidia.com/webhook/sessao-${session_id}`
+  const novoNome = `WhatsApp - Agente ${agenteId.slice(0, 5)} (${session_id.slice(0, 5)})`
 
-  // 2. Clona e edita o modelo do fluxo
-  const novoFluxo = JSON.parse(JSON.stringify(workflowModelo));
-  novoFluxo.name = novoNome;
+  // 2. Clona e substitui dinamicamente as variáveis
+  const fluxoRaw = JSON.stringify(workflowModelo)
+    .replace(/{{session_id}}/g, session_id)
+    .replace(/{{assistant_id}}/g, assistant_id)
+
+  const novoFluxo = JSON.parse(fluxoRaw)
+  delete novoFluxo.active;
+  novoFluxo.name = novoNome
   novoFluxo.settings = {
     timezone: 'America/Sao_Paulo',
     executionTimeout: 3600,
-  };
-
-  novoFluxo.nodes = novoFluxo.nodes.map((node: any) => {
-    if (node.type === 'n8n-nodes-base.webhook') {
-      return {
-        ...node,
-        parameters: {
-          ...node.parameters,
-          path: session_id.startsWith('sessao-') ? session_id : `sessao-${session_id}`,
-        },
-      };
-    }
-
-    if (node.type === 'n8n-nodes-base.openaiAssistant') {
-      return {
-        ...node,
-        parameters: {
-          ...node.parameters,
-          assistantId: {
-            value: assistant_id,
-            mode: 'list',
-          },
-        },
-      };
-    }
-
-    return node;
-  });
+  }
 
   // 3. Cria o fluxo via API do n8n
   const createRes = await fetch(`${N8N_URL}/api/v1/workflows`, {
@@ -77,14 +55,14 @@ export async function POST(req: NextRequest) {
       'X-N8N-API-KEY': N8N_API_KEY,
     },
     body: JSON.stringify(novoFluxo),
-  });
+  })
 
-  const createData = await createRes.json();
+  const createData = await createRes.json()
   if (!createRes.ok) {
-    return NextResponse.json({ error: 'Erro ao criar fluxo no n8n', details: createData }, { status: 500 });
+    return NextResponse.json({ error: 'Erro ao criar fluxo no n8n', details: createData }, { status: 500 })
   }
 
-  const workflowId = createData.id;
+  const workflowId = createData.id
 
   // 4. Ativa o fluxo
   await fetch(`${N8N_URL}/api/v1/workflows/${workflowId}/activate`, {
@@ -92,9 +70,9 @@ export async function POST(req: NextRequest) {
     headers: {
       'X-N8N-API-KEY': N8N_API_KEY,
     },
-  });
+  })
 
-  // 5. Define o webhook na Evolution
+  // 5. Define o webhook na Evolution API
   await fetch(`${EVOLUTION_API}/webhook/set/${session_id}`, {
     method: 'POST',
     headers: {
@@ -103,8 +81,8 @@ export async function POST(req: NextRequest) {
     },
     body: JSON.stringify({
       webhook: {
-        url: novoWebhook,
         enabled: true,
+        url: novoWebhook,
         method: 'POST',
         contentType: 'application/json',
         base64: false,
@@ -112,13 +90,13 @@ export async function POST(req: NextRequest) {
         events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE'],
       },
     }),
-  });
+  })
 
-  // 6. Atualiza Supabase
+  // 6. Atualiza Supabase com o webhook e workflow
   await supabase
     .from('instancias')
     .update({ webhook: novoWebhook, workflow_id: workflowId })
-    .eq('session_id', session_id);
+    .eq('session_id', session_id)
 
-  return NextResponse.json({ success: true, workflowId, webhook: novoWebhook });
+  return NextResponse.json({ success: true, workflowId, webhook: novoWebhook })
 }
