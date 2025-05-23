@@ -4,17 +4,14 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "sessao-{{session_id}}",
+        "path": "{{session_id}}",
         "options": {}
       },
       "id": "webhook-node",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        1360,
-        580
-      ]
+      "position": [1360, 580]
     },
     {
       "parameters": {
@@ -43,10 +40,31 @@
       "name": "Dados vindos Whatsapp",
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
-      "position": [
-        1620,
-        580
-      ]
+      "position": [1620, 580]
+    },
+    {
+      "parameters": {
+        "resource": "assistant",
+        "assistantId": {
+          "__rl": true,
+          "value": "{{assistant_id}}",
+          "mode": "id"
+        },
+        "prompt": "define",
+        "text": "={{ $json.body.data.message.conversation }}",
+        "options": {}
+      },
+      "id": "openai-node",
+      "name": "OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [1860, 580],
+      "credentials": {
+        "openAiApi": {
+          "id": "suxYhWDcTvxKaBBx",
+          "name": "OpenAi account 3"
+        }
+      }
     },
     {
       "parameters": {
@@ -63,30 +81,12 @@
       "name": "Dados vindos OpenAI",
       "type": "n8n-nodes-base.set",
       "typeVersion": 1,
-      "position": [
-        2260,
-        580
-      ]
-    },
-    {
-      "parameters": {
-        "resource": "assistant",
-        "assistantId": "{{assistant_id}}",
-        "text": "={{ $json.nome }} diz {{ $json.mensagem }}"
-      },
-      "id": "openai-node",
-      "name": "OpenAI",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 1,
-      "position": [
-        1860,
-        580
-      ]
+      "position": [2260, 580]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://wsapi.guarumidia.com/message/sendText/sessao-{{session_id}}",
+        "url": "https://wsapi.guarumidia.com/message/sendText/{{session_id}}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
@@ -94,27 +94,32 @@
           "parameters": [
             {
               "name": "number",
-              "value": "={{ $('Webhook').item.json.body.data[0].remoteJid }}"
+              "value": "={{ $('Dados vindos Whatsapp').item.json.body.data.key.remoteJid }}"
             },
             {
               "name": "text",
-              "value": "={{ $json.mensagem }}"
+              "value": "={{ $json.output }}"
             }
           ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
         }
       },
       "id": "http-node",
       "name": "Envia para WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
-      "position": [
-        2480,
-        580
-      ],
+      "typeVersion": 4.2,
+      "position": [2480, 580],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "",
-          "name": ""
+          "id": "HEADER_AUTH_ACCOUNT_ID",
+          "name": "Header Auth account"
         }
       }
     }

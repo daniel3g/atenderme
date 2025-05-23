@@ -31,13 +31,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'assistant_id não definido para essa instância.' }, { status: 400 })
   }
 
-  const novoWebhook = `https://webhooks.guarumidia.com/webhook/sessao-${session_id}`
+  const novoWebhook = `https://webhooks.guarumidia.com/webhook/${session_id}`
   const novoNome = `WhatsApp - Agente ${agenteId.slice(0, 5)} (${session_id.slice(0, 5)})`
 
   // 2. Clona e substitui dinamicamente as variáveis
   const fluxoRaw = JSON.stringify(workflowModelo)
     .replace(/{{session_id}}/g, session_id)
     .replace(/{{assistant_id}}/g, assistant_id)
+
+    .replace(/"id": "HEADER_AUTH_ACCOUNT_ID"/g, `"id": "Iix3H1GNUflfNymq"`)
+    .replace(/"name": "Header Auth account"/g, `"name": "Header Auth account"`)
+
+    .replace(/"id": "HEADER_OPENAI_ID"/g, `"id": "suxYhWDcTvxKaBBx"`)
+    .replace(/"name": "OpenAi account 3"/g, `"name": "OpenAi account 3"`)
+
 
   const novoFluxo = JSON.parse(fluxoRaw)
   delete novoFluxo.active;
