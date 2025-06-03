@@ -33,7 +33,7 @@ export default async function Dashboard() {
 
       <form>
             <button
-              className='flex items-center justify-center bg-red rounded-md p-2 h-8 w-20 text-white' 
+              className='flex items-center justify-center bg-red rounded-md p-2 h-8 w-20 text-black' 
               formAction={signOut}
             >
               sair
