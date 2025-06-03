@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('agentes')
-    .select('prompt')
+    .select('id, nome, prompt, assistant_id, profile_id')
     .eq('id', id)
     .single();
 
@@ -19,5 +19,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Agente não encontrado.' }, { status: 404 });
   }
 
-  return NextResponse.json({ prompt: data.prompt });
+  return NextResponse.json(data);
 }

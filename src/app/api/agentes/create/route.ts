@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { createClient } from '@/lib/supabase/server';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
@@ -20,23 +20,31 @@ Seja sempre coerente, prestativo(a) e respeitoso(a) ao interagir.
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
+  const supabase = await createClient();
+
+  // Recupera o usuário autenticado via cookies
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData?.user) {
+    return NextResponse.json({ error: 'Usuário não autenticado' }, { status: 401 });
+  }
+
+  const profile_id = userData.user.id;
   const prompt = gerarPrompt(body);
 
-  // 1. Cria o assistant na OpenAI
+  // Cria o assistant na OpenAI
   const openaiRes = await fetch('https://api.openai.com/v1/assistants', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${OPENAI_API_KEY}`,
-    'OpenAI-Beta': 'assistants=v2',
-  },
-  body: JSON.stringify({
-    name: body.nome,
-    instructions: prompt,
-    model: 'gpt-4', // ou 'gpt-3.5-turbo'
-  }),
-});
-
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      'OpenAI-Beta': 'assistants=v2',
+    },
+    body: JSON.stringify({
+      name: body.nome,
+      instructions: prompt,
+      model: 'gpt-4',
+    }),
+  });
 
   const openaiData = await openaiRes.json();
 
@@ -46,10 +54,10 @@ export async function POST(req: NextRequest) {
 
   const assistant_id = openaiData.id;
 
-  // 2. Salva no Supabase
+  // Salva no Supabase
   const { data, error } = await supabase
     .from('agentes')
-    .insert([{ nome: body.nome, prompt, assistant_id }])
+    .insert([{ nome: body.nome, prompt, assistant_id, profile_id }])
     .select()
     .single();
 

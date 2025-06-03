@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabaseClient'
 import workflowModelo from '@/assets/WhatsApp_modelo.json'
+import { spawn } from 'child_process'
+import path from 'path'
 
 const N8N_URL = 'https://workflows.guarumidia.com'
 const N8N_API_KEY = process.env.N8N_API_KEY || 'SUA_CHAVE_GERADA_DO_N8N'
@@ -10,7 +12,6 @@ const TOKEN = process.env.EVOLUTION_API_TOKEN || ''
 export async function POST(req: NextRequest) {
   const { agenteId } = await req.json()
 
-  // 1. Busca a instância vinculada no Supabase
   const { data, error } = await supabase
     .from('instancias')
     .select('*')
@@ -34,27 +35,35 @@ export async function POST(req: NextRequest) {
   const novoWebhook = `https://webhooks.guarumidia.com/webhook/${session_id}`
   const novoNome = `WhatsApp - Agente ${agenteId.slice(0, 5)} (${session_id.slice(0, 5)})`
 
-  // 2. Clona e substitui dinamicamente as variáveis
-  const fluxoRaw = JSON.stringify(workflowModelo)
+  const fluxoClonado = structuredClone(workflowModelo)
+  const nomeWebhook = `Webhook Sessão ${session_id.slice(0, 5)}`
+
+  for (const node of fluxoClonado.nodes) {
+    if (node.name === 'Webhook') {
+      node.name = nomeWebhook
+      break
+    }
+  }
+
+  const conexoes = fluxoClonado.connections as Record<string, any>;
+if (conexoes['Webhook']) {
+  conexoes[nomeWebhook] = conexoes['Webhook'];
+  delete conexoes['Webhook'];
+}
+
+
+  const fluxoRaw = JSON.stringify(fluxoClonado)
     .replace(/{{session_id}}/g, session_id)
     .replace(/{{assistant_id}}/g, assistant_id)
 
-    .replace(/"id": "HEADER_AUTH_ACCOUNT_ID"/g, `"id": "Iix3H1GNUflfNymq"`)
-    .replace(/"name": "Header Auth account"/g, `"name": "Header Auth account"`)
-
-    .replace(/"id": "HEADER_OPENAI_ID"/g, `"id": "suxYhWDcTvxKaBBx"`)
-    .replace(/"name": "OpenAi account 3"/g, `"name": "OpenAi account 3"`)
-
-
   const novoFluxo = JSON.parse(fluxoRaw)
-  delete novoFluxo.active;
+  delete novoFluxo.active
   novoFluxo.name = novoNome
   novoFluxo.settings = {
     timezone: 'America/Sao_Paulo',
     executionTimeout: 3600,
   }
 
-  // 3. Cria o fluxo via API do n8n
   const createRes = await fetch(`${N8N_URL}/api/v1/workflows`, {
     method: 'POST',
     headers: {
@@ -71,7 +80,6 @@ export async function POST(req: NextRequest) {
 
   const workflowId = createData.id
 
-  // 4. Ativa o fluxo
   await fetch(`${N8N_URL}/api/v1/workflows/${workflowId}/activate`, {
     method: 'POST',
     headers: {
@@ -79,7 +87,6 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  // 5. Define o webhook na Evolution API
   await fetch(`${EVOLUTION_API}/webhook/set/${session_id}`, {
     method: 'POST',
     headers: {
@@ -99,11 +106,29 @@ export async function POST(req: NextRequest) {
     }),
   })
 
-  // 6. Atualiza Supabase com o webhook e workflow
   await supabase
     .from('instancias')
     .update({ webhook: novoWebhook, workflow_id: workflowId })
     .eq('session_id', session_id)
+
+  // ✅ Executa script Puppeteer para forçar salvamento do fluxo
+  setTimeout(() => {
+    const scriptPath = path.resolve(process.cwd(), 'forcaSalvarFluxo.js')
+    console.log(`🔧 Executando script para salvar o fluxo ${workflowId}...`)
+
+    const processo = spawn('node', [scriptPath, workflowId], {
+      stdio: 'inherit',
+      env: process.env,
+    })
+
+    processo.on('exit', (code) => {
+      if (code === 0) {
+        console.log(`✅ Fluxo ${workflowId} salvo automaticamente com sucesso!`)
+      } else {
+        console.error(`❌ Erro ao salvar fluxo ${workflowId} (exit code: ${code})`)
+      }
+    })
+  }, 3000)
 
   return NextResponse.json({ success: true, workflowId, webhook: novoWebhook })
 }

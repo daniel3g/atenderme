@@ -9,6 +9,19 @@ export async function POST(req: NextRequest) {
   const session_id = `sessao-${agenteId}`;
 
   try {
+    // 🔍 Buscar profile_id do agente
+    const { data: agenteData, error: agenteError } = await supabase
+      .from('agentes')
+      .select('profile_id')
+      .eq('id', agenteId)
+      .single();
+
+    if (agenteError || !agenteData?.profile_id) {
+      return NextResponse.json({ error: 'Profile ID não encontrado.' }, { status: 400 });
+    }
+
+    const profile_id = agenteData.profile_id;
+
     // Verifica se a instância já existe
     const checkRes = await fetch(`${EVOLUTION_API}/instance/connectionState/${session_id}`, {
       headers: { apikey: TOKEN },
@@ -30,12 +43,11 @@ export async function POST(req: NextRequest) {
 
         await supabase
           .from('instancias')
-          .update({ status: 'ativo', numero_whatsapp: numero })
+          .update({ status: 'ativo', numero_whatsapp: numero, assistant_id, profile_id })
           .eq('agente_id', agenteId);
 
         return NextResponse.json({ status: 'ativo' });
       }
-
 
       if (state === 'connecting' || state === 'close') {
         console.log('[INFO] Instância existente. Tentando conectar...');
@@ -85,6 +97,7 @@ export async function POST(req: NextRequest) {
         session_id,
         status: 'pendente',
         assistant_id,
+        profile_id,
       },
     ]);
 

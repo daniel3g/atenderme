@@ -17,22 +17,42 @@ export default function InstanciaPage() {
   }, [id]);
 
   // Criação da instância
-  useEffect(() => {
+useEffect(() => {
+  const criarInstancia = async () => {
     if (!agenteId) return;
 
-    fetch('/api/instancias/criar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agenteId }),
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.qrcode_base64) {
-          setQrcode(data.qrcode_base64);
-        }
-      })
-      .catch(() => setStatus('erro'));
-  }, [agenteId]);
+    try {
+      const resAgente = await fetch(`/api/agentes/get?id=${agenteId}`);
+      const dataAgente = await resAgente.json();
+
+      if (!dataAgente?.assistant_id) {
+        console.error('❌ assistant_id não encontrado');
+        setStatus('erro');
+        return;
+      }
+
+      const resInstancia = await fetch('/api/instancias/criar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agenteId,
+          assistant_id: dataAgente.assistant_id,
+        }),
+      });
+
+      const dataInstancia = await resInstancia.json();
+      if (dataInstancia.qrcode_base64) {
+        setQrcode(dataInstancia.qrcode_base64);
+      }
+    } catch (err) {
+      console.error('Erro ao criar instância:', err);
+      setStatus('erro');
+    }
+  };
+
+  criarInstancia();
+}, [agenteId]);
+
 
   // Verificação do status
   useEffect(() => {
