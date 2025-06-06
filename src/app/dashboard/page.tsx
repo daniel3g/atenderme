@@ -1,44 +1,37 @@
-import { createClient } from '../../lib/supabase/server'
-import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { signOut } from '../login/actions'
+import { createClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { DashboardLogout } from '@/components/DashboardLogout';
 
 export default async function Dashboard() {
-  const supabase = await createClient()
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getUser();
+  const user = data?.user;
 
-  const { data, error } = await supabase.auth.getUser()
-  if (error || !data?.user) {
-    redirect('/login')
+  if (!user) {
+    redirect('/login');
   }
-
-  const user = data.user!
 
   const { data: profile } = await supabase
     .from('profiles')
     .select('full_name')
     .eq('id', user.id)
-    .single()
+    .single();
 
   const { data: agentes } = await supabase
     .from('agentes')
     .select('id, nome, prompt, criado_em')
     .eq('profile_id', user.id)
-    .order('criado_em', { ascending: false })
+    .order('criado_em', { ascending: false });
 
-  const lista = agentes ?? []
+  const lista = agentes ?? [];
 
   return (
     <main className="max-w-3xl mx-auto mt-10 p-4">
       <h1 className="text-3xl font-bold mb-6">Meus Assistentes</h1>
 
-      <form>
-            <button
-              className='flex items-center justify-center bg-red rounded-md p-2 h-8 w-20 text-black' 
-              formAction={signOut}
-            >
-              sair
-            </button>
-          </form>
+      <DashboardLogout /> {/* Componente client com botão "sair" */}
 
       <Link
         href="/criar-agente"
@@ -75,5 +68,5 @@ export default async function Dashboard() {
         </ul>
       )}
     </main>
-  )
+  );
 }
